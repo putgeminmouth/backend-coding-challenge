@@ -1,4 +1,26 @@
 <!DOCTYPE html>
-
 <html>
+
+<link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+
+<script>
+    $(function() {
+        $('input').autocomplete({
+          source: function(request, response) {
+            $.get('/suggestions?q=' + request.term, function(data) {
+                response(data);
+                });
+          }
+        });
+    });
+</script>
+
+<div class="ui-widget">
+    <label>
+        City: <input type="text">
+    </label>
+</div>
+
 </html>
