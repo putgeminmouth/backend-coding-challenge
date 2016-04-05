@@ -1,4 +1,4 @@
-name := """play-getting-started"""
+name := """Tardar Sauce"""
 
 version := "1.0-SNAPSHOT"
 
