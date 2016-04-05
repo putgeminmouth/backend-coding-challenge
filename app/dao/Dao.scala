@@ -2,6 +2,8 @@ package dao
 
 import scala.io.Source
 
+case class Suggestion(name: String, latitude: String, longitude: String, score: Int)
+
 object Dao {
 
     def using[A <: AutoCloseable, B](ac: A)(block: A => B) = {
@@ -21,6 +23,11 @@ object Dao {
 
     lazy val rowData = rawData.drop(1)
     def col(name: String)(implicit row: Seq[String]) = columnNameToIndex.get(name).map(row).get
+
+    def mapSuggestion(row: Seq[String]) = {
+        implicit val r = row
+        Suggestion(col("name"), col("lat"), col("long"), 0)
+    }
 }
 
 class Dao {
@@ -28,8 +35,8 @@ class Dao {
     def selectByNameStart(namePrefix: String) = {
         rowData.filter{ implicit row =>
             col("name").startsWith(namePrefix)
-        }.map { implicit row =>
-            col("name")
-        }
+        }.map(mapSuggestion)
+        // TODO: score
+         .sortWith( (a, b) => b.score > a.score )
     }
 }
