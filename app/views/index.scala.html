@@ -15,7 +15,7 @@
           }
         }).autocomplete('instance')._renderItem = function(ul, item) {
           return $('<li>')
-            .text(item.name)
+            .text(item.score + ': ' + item.name)
             .appendTo(ul);
         };
     });
