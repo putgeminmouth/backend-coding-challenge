@@ -6,12 +6,19 @@ import play.api.db.DB
 import util.pattern.using
 import util.text.normalize
 
-case class Suggestion(name: String, latitude: BigDecimal, longitude: BigDecimal, score: Double)
+case class Suggestion(name: String,
+                      latitude: BigDecimal,
+                      longitude: BigDecimal,
+                      score: Double)
 
 object Dao {
 
     def mapSuggestion(rs: ResultSet) =
-        Suggestion(rs.getString("name"), rs.getBigDecimal("latitude"), rs.getBigDecimal("longitude"), rs.getDouble("score"))
+        Suggestion(
+            s"${rs.getString("name")}, ${rs.getString("division")}, ${rs.getString("country")}",
+            rs.getBigDecimal("latitude"),
+            rs.getBigDecimal("longitude"),
+            rs.getDouble("score"))
 
     def mapResultSet[A](rs: ResultSet)(mapper: ResultSet => A) =
         Iterator.continually(rs)
