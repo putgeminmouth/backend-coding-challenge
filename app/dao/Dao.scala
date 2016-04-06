@@ -1,63 +1,96 @@
 package dao
 
-import scala.io.Source
+import java.sql.ResultSet
 
-case class Coordinate(latitude: Double, longitude: Double)
-case class Suggestion(name: String, latitude: String, longitude: String, score: Double)
+import play.api.db.DB
+import util.pattern.using
+import util.text.normalize
+
+case class Suggestion(name: String, latitude: BigDecimal, longitude: BigDecimal, score: Double)
 
 object Dao {
 
-    def using[A <: AutoCloseable, B](ac: A)(block: A => B) = {
-        try {
-            block(ac)
-        } finally {
-            ac.close()
-        }
-    }
+    def mapSuggestion(rs: ResultSet) =
+        Suggestion(rs.getString("name"), rs.getBigDecimal("latitude"), rs.getBigDecimal("longitude"), rs.getDouble("score"))
 
-    type Row = Map[String, String]
-    type ScoredRow = (Double, Row)
+    def mapResultSet[A](rs: ResultSet)(mapper: ResultSet => A) =
+        Iterator.continually(rs)
+                .takeWhile(_.next)
+                .map(mapper)
+                // ensure all rows processed before closing rs
+                // also make things like getting length safe
+                // OK since we always iterate over all results
+                .toList
 
-    private lazy val rawData = Source.fromFile("data/cities_canada-usa.tsv")
-                      .getLines
-                      .map(_.split("\\t").toSeq)
-                      .toSeq
-    lazy val columnNameByIndex = rawData.head
-    lazy val columnNameToIndex = rawData.head.zipWithIndex.toMap
 
-    lazy val rowData = rawData.drop(1)
-                              // make rows associative instead of index based
-                              .map{ row => row.zipWithIndex.map(z => columnNameByIndex(z._2) -> z._1).toMap }
+    // http://www.postgresql.org/docs/8.3/static/functions-matching.html
+    val likeSpecialChars = Set('?', '_', '%')
+    def escapeLike(like: String) =
+        like.filterNot(likeSpecialChars)
 
-    def mapSuggestion(t: ScoredRow) = {
-        val row = t._2
-        Suggestion(row("name"), row("lat"), row("long"), t._1)
-    }
+    def scoreNormalizedAgainstMaxValue(max: Double) =
+        (score: Double) => 1 - score / max
 }
 
-class Dao {
+trait SuggestionDao {
+    def selectByName(name: String): Seq[Suggestion]
+    def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal): Seq[Suggestion]
+}
+
+class PostgresSuggestionDao extends SuggestionDao {
     import Dao._
+    import play.api.Play.current
 
-    def selectByNameStart(namePrefix: String, coordinates: Option[Coordinate] = None) = {
-        val map = (r: Seq[ScoredRow]) => r.map(mapSuggestion)
+    private def applyScore(max: Double)(suggestion: Suggestion) =
+        suggestion.copy(score = scoreNormalizedAgainstMaxValue(max)(suggestion.score))
 
-        val scoreByName = (results: Seq[Row]) => {
-            val filtered = results.filter(_("name").toLowerCase.startsWith(namePrefix))
-            filtered
-                   .sortBy(_("name"))
-                   .zipWithIndex
-                   .map { case (result, index) =>
-                val score = 1 - (index / (filtered.length-1).toDouble)
-                score -> result
+    def selectByName(name: String): Seq[Suggestion] = {
+        val like = s"${escapeLike(normalize(name))}%"
+
+        DB.withConnection() { conn =>
+            using(conn.prepareStatement(s"""
+                  | SELECT *, ROW_NUMBER() OVER (order by normalized) as score
+                  | FROM geoname g
+                  | WHERE normalized LIKE ?
+                  | ORDER BY score
+                  |""".stripMargin)) { stmt =>
+                stmt.setString(1, like)
+
+                using(stmt.executeQuery()) { rs =>
+                    val suggestions = mapResultSet(rs)(mapSuggestion)
+                    suggestions
+                        .map(applyScore(suggestions.length))
+
+                }
             }
         }
+    }
 
-        val scoreByCoordinates = identity[Seq[ScoredRow]] _ // TODO: score
+    def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal): Seq[Suggestion] = {
+        val like = s"${escapeLike(normalize(name))}%"
 
-        val sort = (r: Seq[Suggestion]) => r.sortWith( (a, b) => a.score > b.score )
+        DB.withConnection() { conn =>
+            // technically we could avoid returning distance from the query
+            // we could optimize by not taking SQRT since we are just comparing
+            using(conn.prepareStatement(s"""
+                  | SELECT *, SQRT((latitude - ?)^2 + (longitude - ?)^2) as score
+                  | FROM geoname g
+                  | WHERE normalized LIKE ?
+                  | ORDER BY score
+                  |""".stripMargin)) { stmt =>
+                stmt.setBigDecimal(1, latitude.bigDecimal)
+                stmt.setBigDecimal(2, longitude.bigDecimal)
+                stmt.setString(3, like)
 
-        val search = scoreByName andThen scoreByCoordinates andThen map andThen sort
-
-        search(rowData)
+                using(stmt.executeQuery()) { rs =>
+                    val suggestions = mapResultSet(rs)(mapSuggestion)
+                    val maxDistance = suggestions.foldLeft(0.0) { (acc, next) =>
+                        if (next.score > acc) next.score else acc
+                    }
+                    suggestions
+                        .map(applyScore(maxDistance))
+                }
+            }
+        }
     }
 }

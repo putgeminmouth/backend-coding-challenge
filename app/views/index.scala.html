@@ -7,24 +7,42 @@
 
 <script>
     $(function() {
-        $('input').autocomplete({
+        $('[name=city]').autocomplete({
           source: function(request, response) {
-            $.get('/suggestions?q=' + request.term, function(data) {
+            var lat = $('input[name="lat"]').val();
+            var lon = $('input[name="lon"]').val();
+
+            var latlon = lat.length && lon.length && ('&' + 'latitude='+lat + '&' + 'longitude='+lon) || '';
+
+            $.get('/suggestions?q=' + request.term + latlon, function(data) {
                 response(data);
                 });
           }
         }).autocomplete('instance')._renderItem = function(ul, item) {
-          return $('<li>')
-            .text(item.score + ': ' + item.name)
+          var li = $('<li>')
+            .text(item.score + ': ' + item.name + ' (' + item.latitude + ', ' + item.longitude + ')')
             .appendTo(ul);
+          li.clone().appendTo($('#debug'));
+          return li;
         };
     });
 </script>
 
 <div class="ui-widget">
     <label>
-        City: <input type="text">
+        City: <input type="text" name="city" autofocus>
     </label>
+    <div style="margin-top: 10px">
+        <label>
+            Latitude: <input type="text" name="lat" value="45.52">
+        </label>
+        <label>
+            Longitude: <input type="text" name="lon" value="-73.58">
+        </label>
+        </div>
+    </div>
 </div>
+
+<div id="debug"></div>
 
 </html>
