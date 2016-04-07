@@ -1,4 +1,4 @@
-GET     /                           controllers.Application.index
-GET     /suggestions                controllers.Application.suggestions(q: String, latitude: Option[String], longitude: Option[String])
+GET     /                           @controllers.Application.index
+GET     /suggestions                @controllers.Application.suggestions(q: String, latitude: Option[String], longitude: Option[String])
 
 GET     /assets/*file               controllers.Assets.at(path="/public", file)

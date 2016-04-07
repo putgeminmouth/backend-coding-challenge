@@ -1,6 +1,6 @@
 package scripts.db
 
-import java.sql.{BatchUpdateException, Connection, DriverManager, PreparedStatement}
+import java.sql.{Connection, DriverManager, PreparedStatement}
 
 import util.pattern.using
 import util.text.normalize
@@ -80,7 +80,7 @@ object ImportDao {
 }
 
 object DBImport {
-    import ImportDao.{City, mapCity, CityRow, CountryCodeToName, DivisionToName}
+    import ImportDao.{City, CityRow, CountryCodeToName, DivisionToName, mapCity}
 
     def indexedToAssociative(columnNameByIndex: Seq[String])(indexed: Seq[String]) =
         indexed.zipWithIndex.map(z => columnNameByIndex(z._2) -> z._1).toMap

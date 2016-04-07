@@ -1,14 +1,13 @@
 package controllers
 
-import dao.{PostgresSuggestionDao, Suggestion, Dao}
+import javax.inject.Inject
+
+import dao.{Suggestion, SuggestionDao}
 import play.api.libs.json._
 import play.api.mvc._
 
-
-object Application extends Controller {
+class Application @Inject() (dao: SuggestionDao) extends Controller {
     implicit val suggestionToJson = Json.writes[Suggestion]
-
-    val dao = new PostgresSuggestionDao // TODO: dependency injection much?
 
     def index = Action {
         Ok(views.html.index())
