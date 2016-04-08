@@ -105,7 +105,6 @@ class FuncSpec extends PlaySpec
         lastTestStatus.get() match {
             case Some(FailedStatus) =>
                 // for some reason using Logger doesn't output anything here
-                // possibly due to Application lifecycle issues?
                 lastWSResponse.foreach(r => println(s"Response body:\n${r.body}\n"))
             case _ =>
         }
@@ -200,18 +199,6 @@ class FuncSpec extends PlaySpec
     }
 
     "name and coordinate suggestion edge cases" should {
-        def equalIgnoringScore(right: Suggestion): Matcher[Suggestion] =
-            new Matcher[Suggestion] {
-                def apply(left: Suggestion): MatchResult =
-                    MatchResult(
-                        left.copy(score=0) == right.copy(score=0),
-                        "{0} did not equal (ignoring score) {1}",
-                        "% equaled (ignoring score) %",
-                        Vector(left, right),
-                        Vector(left, right)
-                    )
-                override def toString: String = "be theSameInstanceAs " + Prettifier.default(right)
-            }
         "return empty results when there is no match" in new WithServer(port = port) {
             val nonExistantName = "Cair Paravel"
 

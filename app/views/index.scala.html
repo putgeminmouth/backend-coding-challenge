@@ -6,8 +6,23 @@
 <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
 
 <script>
+    function render(ul, item) {
+      var li = $('<li>')
+        .text(item.score + ': ' + item.name + ' (' + item.latitude + ', ' + item.longitude + ')')
+        .appendTo(ul);
+      return li;
+    }
+
     $(function() {
-        $('[name=city]').autocomplete({
+        $('[name=city1]').autocomplete({
+          source: function(request, response) {
+            $.get('/suggestions?q=' + request.term, function(data) {
+                    response(data);
+                });
+          }
+        }).autocomplete('instance')._renderItem = render;
+
+        $('[name=city2]').autocomplete({
           source: function(request, response) {
             var lat = $('input[name="lat"]').val();
             var lon = $('input[name="lon"]').val();
@@ -15,22 +30,24 @@
             var latlon = lat.length && lon.length && ('&' + 'latitude='+lat + '&' + 'longitude='+lon) || '';
 
             $.get('/suggestions?q=' + request.term + latlon, function(data) {
-                response(data);
+                    response(data);
                 });
           }
-        }).autocomplete('instance')._renderItem = function(ul, item) {
-          var li = $('<li>')
-            .text(item.score + ': ' + item.name + ' (' + item.latitude + ', ' + item.longitude + ')')
-            .appendTo(ul);
-          li.clone().appendTo($('#debug'));
-          return li;
-        };
+        }).autocomplete('instance')._renderItem = render;
     });
 </script>
 
 <div class="ui-widget">
     <label>
-        City: <input type="text" name="city" autofocus>
+        City: <input type="text" name="city1" autofocus>
+    </label>
+</div>
+
+<hr>
+
+<div class="ui-widget">
+    <label>
+        City: <input type="text" name="city2" autofocus>
     </label>
     <div style="margin-top: 10px">
         <label>
