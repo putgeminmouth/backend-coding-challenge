@@ -6,19 +6,36 @@ import dao.{Suggestion, SuggestionDao}
 import play.api.libs.json._
 import play.api.mvc._
 
+import scala.util.{Failure, Success, Try}
+
 class Application @Inject() (dao: SuggestionDao) extends Controller {
+    // TODO: currently converts BigDecimal to float with possible rounding error
     implicit val suggestionToJson = Json.writes[Suggestion]
 
     def index = Action {
         Ok(views.html.index())
     }
 
-    def suggestions(name: String, latitude: Option[String], longitude: Option[String]) = Action { request =>
-        val found = if (latitude.isDefined && longitude.isDefined) {
-            dao.selectByNameWithCoordinates(name, BigDecimal(latitude.get), BigDecimal(longitude.get))
-        } else {
-            dao.selectByName(name)
+    def suggestions(nameParam: String, latitudeParam: Option[String], longitudeParam: Option[String]) = Action { request =>
+        def parseBigDecimal(optBd: Option[String]): Option[Try[BigDecimal]] =
+            optBd.map(_.trim).map(o => Try(BigDecimal(o)))
+
+        val result = (nameParam, parseBigDecimal(latitudeParam), parseBigDecimal(longitudeParam)) match {
+            case (name, Some(Success(latitude)), Some(Success(longitude))) if name.trim.nonEmpty =>
+                Right(dao.selectByNameWithCoordinates(name, latitude, longitude))
+
+            case (name, None, None) if name.trim.nonEmpty =>
+                Right(dao.selectByName(nameParam))
+
+            case _ =>
+                Left(BadRequest)
         }
-        Ok(Json.toJson(found))
+
+        result match {
+            case Right(found) =>
+                Ok(Json.toJson(found))
+            case Left(error) =>
+                error
+        }
     }
 }

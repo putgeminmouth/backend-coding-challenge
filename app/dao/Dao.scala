@@ -11,6 +11,10 @@ case class Suggestion(name: String,
                       longitude: BigDecimal,
                       score: Double)
 
+object GeonameTable {
+    val tableName = "geoname"
+}
+
 object Dao {
 
     def mapSuggestion(rs: ResultSet) =
@@ -55,9 +59,10 @@ class PostgresSuggestionDao extends SuggestionDao {
         val like = s"${escapeLike(normalize(name))}%"
 
         DB.withConnection() { conn =>
+            import GeonameTable._
             using(conn.prepareStatement(s"""
                   | SELECT *, ROW_NUMBER() OVER (order by normalized) as score
-                  | FROM geoname g
+                  | FROM $tableName g
                   | WHERE normalized LIKE ?
                   | ORDER BY score
                   |""".stripMargin)) { stmt =>
@@ -77,11 +82,12 @@ class PostgresSuggestionDao extends SuggestionDao {
         val like = s"${escapeLike(normalize(name))}%"
 
         DB.withConnection() { conn =>
+            import GeonameTable._
             // technically we could avoid returning distance from the query
             // we could optimize by not taking SQRT since we are just comparing
             using(conn.prepareStatement(s"""
                   | SELECT *, SQRT((latitude - ?)^2 + (longitude - ?)^2) as score
-                  | FROM geoname g
+                  | FROM $tableName g
                   | WHERE normalized LIKE ?
                   | ORDER BY score
                   |""".stripMargin)) { stmt =>

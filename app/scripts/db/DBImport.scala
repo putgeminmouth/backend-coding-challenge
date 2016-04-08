@@ -2,8 +2,10 @@ package scripts.db
 
 import java.sql.{Connection, DriverManager, PreparedStatement}
 
+import play.api.Logger
 import util.pattern.using
 import util.text.normalize
+import util.db.usingNewConnection
 
 import scala.io.Source
 
@@ -13,16 +15,6 @@ object ImportDao {
     type DivisionToName = Map[String, String]
 
     case class City(id: Int, name: String, normalized: String, latitude: BigDecimal, longitude: BigDecimal, country: String, division: String)
-
-    def usingConnection(block: Connection => Unit) {
-        val conn = DriverManager.getConnection(sys.env("DATABASE_URL"))
-        using(conn) {
-            // TODO: are we okay with partial loads?
-            conn.setAutoCommit(true)
-
-            block
-        }
-    }
 
     def mapCity(countryCodeToName: CountryCodeToName,
                 divisionToNameByCountry: Map[String, DivisionToName])
@@ -53,7 +45,9 @@ object ImportDao {
             extract _
         }
 
-        usingConnection { conn =>
+        usingNewConnection { conn =>
+            // TODO: are we okay with partial loads?
+            conn.setAutoCommit(true)
 
             using(conn.prepareStatement("""
              INSERT INTO geoname

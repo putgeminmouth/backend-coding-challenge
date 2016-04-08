@@ -1,5 +1,6 @@
 package util
 
+import java.sql.{DriverManager, Connection}
 import java.text.Normalizer
 
 package object pattern {
@@ -22,4 +23,16 @@ package object text {
         Normalizer.normalize(src, Normalizer.Form.NFKD)
             .replaceAll("\\p{M}", "")
             .toLowerCase
+}
+
+package object db {
+    import pattern._
+
+    def usingNewConnection(block: Connection => Unit) {
+        val conn = DriverManager.getConnection(sys.env("DATABASE_URL"))
+        using(conn) {
+
+            block
+        }
+    }
 }
