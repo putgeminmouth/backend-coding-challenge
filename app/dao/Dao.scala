@@ -1,8 +1,9 @@
 package dao
 
 import java.sql.ResultSet
+import javax.inject.Inject
 
-import play.api.db.DB
+import play.api.db.{Database}
 import util.pattern.using
 import util.text.normalize
 
@@ -48,9 +49,8 @@ trait SuggestionDao {
     def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal): Seq[Suggestion]
 }
 
-class PostgresSuggestionDao extends SuggestionDao {
+class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
     import Dao._
-    import play.api.Play.current
 
     private def applyScore(max: Double)(suggestion: Suggestion) =
         suggestion.copy(score = scoreNormalizedAgainstMaxValue(max)(suggestion.score))
@@ -58,7 +58,7 @@ class PostgresSuggestionDao extends SuggestionDao {
     def selectByName(name: String): Seq[Suggestion] = {
         val like = s"${escapeLike(normalize(name))}%"
 
-        DB.withConnection() { conn =>
+        db.withConnection { conn =>
             import GeonameTable._
             using(conn.prepareStatement(s"""
                   | SELECT *, ROW_NUMBER() OVER (order by normalized) as score
@@ -81,7 +81,7 @@ class PostgresSuggestionDao extends SuggestionDao {
     def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal): Seq[Suggestion] = {
         val like = s"${escapeLike(normalize(name))}%"
 
-        DB.withConnection() { conn =>
+        db.withConnection { conn =>
             import GeonameTable._
             // technically we could avoid returning distance from the query
             // we could optimize by not taking SQRT since we are just comparing

@@ -1,12 +1,16 @@
 import java.sql.SQLException
 import java.util.concurrent.atomic.AtomicReference
 
-import dao.Suggestion
+import controllers.Application
+import dao.{SuggestionDao, Suggestion}
 import org.scalatest._
 import org.scalatestplus.play._
+import org.specs2.execute.{Result, AsResult}
 import play.api.Logger
+import play.api.inject._
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.Json
-import play.api.libs.ws.{WS, WSResponse}
+import play.api.libs.ws.{WSClient, WS, WSResponse}
 import play.api.mvc.Results
 import play.api.test.{Helpers, WithServer}
 import scripts.db.ImportDao
@@ -16,6 +20,7 @@ import util.pattern.using
 import scala.collection.JavaConverters._
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.util.Try
 
 trait WithTestStatus extends SuiteMixin { self: Suite =>
     // BeforeAndAfter uses atomic/volatile, so we do too, even though
@@ -42,68 +47,77 @@ class FuncSpec extends PlaySpec
 {
     implicit val suggestionFromJson = Json.reads[Suggestion]
 
-    var port: Int = _
-    var lastWSResponse: Option[WSResponse] = None
+    class Test extends WithServer
+    {
+        var wsClient: WSClient = _
 
-    def baseUrl = s"http://localhost:$port/suggestions"
+        override def around[T: AsResult](t: => T): Result = {
+            inject()
 
-    def url(name: String, latitude: Option[String], longitude: Option[String]) = {
-        val paramStr = (latitude.map(l => s"&latitude=$l") ++
-                        longitude.map(l => s"&longitude=$l")).flatten.mkString
-        s"${baseUrl}?q=${name}&${paramStr}"
-    }
+            before()
 
-    def url(name: String, latitude: String, longitude: String): String =
-        url(name, Some(latitude), Some(longitude))
+            val ret = super.around(t)
 
-    def url(name: String, latitude: BigDecimal, longitude: BigDecimal): String =
-        url(name, latitude.toString, longitude.toString)
+            after()
 
-    def url(name: String): String =
-        url(name, None, None)
-
-    def request(url: String) = {
-        import play.api.Play.current
-        Logger.debug(s"Request to $url")
-        val response = Await.result(WS.url(url).get(), 10 seconds)
-        lastWSResponse = Some(response)
-        response
-    }
-
-    before {
-        lastWSResponse = None
-        port = Helpers.testServerPort
-
-        try {
-            usingNewConnection { conn =>
-                import dao.GeonameTable._
-
-                conn.setAutoCommit(true)
-
-                using(conn.prepareStatement(s"TRUNCATE TABLE $tableName")) {
-                    _.execute()
-                }
-            }
-
-            ImportDao.insert(Seq(
-                ImportDao.City(6077243, "Montréal", "montreal",             BigDecimal("45.50884"), BigDecimal("-73.58781"),  "Canada",        "Quebec"),
-                ImportDao.City(6077265, "Montréal-Ouest", "montreal-ouest", BigDecimal("45.45286"), BigDecimal("-73.64918"),  "Canada",        "Quebec"),
-                ImportDao.City(4773747, "Montrose", "montrose",             BigDecimal("38.47832"), BigDecimal("-77.37831"),  "United States", "Virginia"),
-                ImportDao.City(5431710, "Montrose", "montrose",             BigDecimal("45.50884"), BigDecimal("-107.87617"), "United States", "Colorado"),
-                ImportDao.City(5431740, "Monument", "monument",             BigDecimal("39.09166"), BigDecimal("-104.87276"), "United States", "Denver")
-            ))
-        } catch {
-            case e: SQLException =>
-                e.iterator().asScala.foreach(Logger.error("", _))
+            ret
         }
-    }
 
-    after {
-        lastTestStatus.get() match {
-            case Some(FailedStatus) =>
-                // for some reason using Logger doesn't output anything here
-                lastWSResponse.foreach(r => println(s"Response body:\n${r.body}\n"))
-            case _ =>
+        def inject() {
+            wsClient = app.injector.instanceOf[WSClient]
+        }
+
+        def before() {
+            try {
+                usingNewConnection { conn =>
+                    import dao.GeonameTable._
+
+                    conn.setAutoCommit(true)
+
+                    using(conn.prepareStatement(s"TRUNCATE TABLE $tableName")) {
+                        _.execute()
+                    }
+                }
+
+                ImportDao.insert(Seq(
+                    ImportDao.City(6077243, "Montréal", "montreal",             BigDecimal("45.50884"), BigDecimal("-73.58781"),  "Canada",        "Quebec"),
+                    ImportDao.City(6077265, "Montréal-Ouest", "montreal-ouest", BigDecimal("45.45286"), BigDecimal("-73.64918"),  "Canada",        "Quebec"),
+                    ImportDao.City(4773747, "Montrose", "montrose",             BigDecimal("38.47832"), BigDecimal("-77.37831"),  "United States", "Virginia"),
+                    ImportDao.City(5431710, "Montrose", "montrose",             BigDecimal("45.50884"), BigDecimal("-107.87617"), "United States", "Colorado"),
+                    ImportDao.City(5431740, "Monument", "monument",             BigDecimal("39.09166"), BigDecimal("-104.87276"), "United States", "Denver")
+                ))
+            } catch {
+                case e: SQLException =>
+                    e.iterator().asScala.foreach(Logger.error("", _))
+            }
+        }
+
+        def after() {
+            Try(wsClient.close())
+        }
+
+        def baseUrl = s"http://localhost:$port/suggestions"
+
+        def url(name: String, latitude: Option[String], longitude: Option[String]) = {
+            val paramStr = (latitude.map(l => s"&latitude=$l") ++
+                longitude.map(l => s"&longitude=$l")).flatten.mkString
+            s"${baseUrl}?q=${name}&${paramStr}"
+        }
+
+        def url(name: String, latitude: String, longitude: String): String =
+            url(name, Some(latitude), Some(longitude))
+
+        def url(name: String, latitude: BigDecimal, longitude: BigDecimal): String =
+            url(name, latitude.toString, longitude.toString)
+
+        def url(name: String): String =
+            url(name, None, None)
+
+        def request(url: String) = {
+            Logger.debug(s"Request to $url")
+            val response = Await.result(wsClient.url(url).get(), 10 seconds)
+            //lastWSResponse = Some(response)
+            response
         }
     }
 
@@ -113,26 +127,26 @@ class FuncSpec extends PlaySpec
     }
 
     "bad request" should {
-        "be returned when name parameter is not specified" in new WithServer(port = port) {
+        "be returned when name parameter is not specified" in new Test() {
             val response = request(baseUrl)
 
             response.status must equal(BadRequest.header.status)
         }
 
-        "be returned when latitude is not specified" in new WithServer(port = port) {
+        "be returned when latitude is not specified" in new Test() {
             val response = request(url("name", "not a number", "5"))
 
             response.status must equal(BadRequest.header.status)
         }
 
-        "be returned when longitude is not specified" in new WithServer(port = port) {
+        "be returned when longitude is not specified" in new Test() {
             val response = request(url("name", "5", "not a number"))
 
             response.status must equal(BadRequest.header.status)
         }
     }
     "name-only suggestion edge cases" should {
-        "return empty results when there is no match" in new WithServer(port = port) {
+        "return empty results when there is no match" in new Test() {
             val nonExistantName = "Cair Paravel"
 
             val response = request(url(nonExistantName))
@@ -146,7 +160,7 @@ class FuncSpec extends PlaySpec
     }
 
     "name-only suggestion ranking" should {
-        "return improve match with more characters set 1" in new WithServer(port = port) {
+        "return improve match with more characters set 1" in new Test() {
             val name = "m"
 
             val response = request(url(name))
@@ -163,7 +177,7 @@ class FuncSpec extends PlaySpec
                 "Monument, Denver, United States"
             ))
         }
-        "return improve match with more characters set 2" in new WithServer(port = port) {
+        "return improve match with more characters set 2" in new Test() {
             val name = "mont"
 
             val response = request(url(name))
@@ -179,7 +193,7 @@ class FuncSpec extends PlaySpec
                 "Montrose, Colorado, United States"
             ))
         }
-        "return improve match with more characters set 3" in new WithServer(port = port) {
+        "return improve match with more characters set 3" in new Test() {
             val name = "Montreal"
 
             val response = request(url(name))
@@ -196,7 +210,7 @@ class FuncSpec extends PlaySpec
     }
 
     "name and coordinate suggestion edge cases" should {
-        "return empty results when there is no match" in new WithServer(port = port) {
+        "return empty results when there is no match" in new Test() {
             val nonExistantName = "Cair Paravel"
 
             val response = request(url(nonExistantName, BigDecimal(0), BigDecimal(0)))
@@ -211,7 +225,7 @@ class FuncSpec extends PlaySpec
 
     "name and coordinate suggestion ranking" should {
 
-        "disambiguate similar names by specifying more precise coordinates" in new WithServer(port = port) {
+        "disambiguate similar names by specifying more precise coordinates" in new Test() {
             val name = "Montré"
 
             /* set 1 */ {
@@ -247,7 +261,7 @@ class FuncSpec extends PlaySpec
             }
         }
 
-        "disambiguate dissimilar names by specifying very precise coordinates" in new WithServer(port = port) {
+        "disambiguate dissimilar names by specifying very precise coordinates" in new Test() {
             val name = "m"
             val latitude = BigDecimal(39.09166)
             val longitude = BigDecimal(-104.87276)
