@@ -4,12 +4,22 @@ import java.sql.{DriverManager, Connection}
 import java.text.Normalizer
 
 package object pattern {
+    // https://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html
     def using[A <: AutoCloseable, B](ac: A)(block: A => B) = {
-        try {
+        val ret = try {
             block(ac)
-        } finally {
-            ac.close()
+        } catch {
+            case t: Throwable =>
+                try {
+                    ac.close()
+                } catch {
+                    case suppressed: Throwable =>
+                        t.addSuppressed(suppressed)
+                }
+                throw t
         }
+        ac.close()
+        ret
     }
 }
 

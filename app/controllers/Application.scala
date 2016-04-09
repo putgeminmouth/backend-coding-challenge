@@ -6,7 +6,7 @@ import dao.{Suggestion, SuggestionDao}
 import play.api.libs.json._
 import play.api.mvc._
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Success, Try}
 
 class Application @Inject() (dao: SuggestionDao) extends Controller {
     // TODO: currently converts BigDecimal to float with possible rounding error

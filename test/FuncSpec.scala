@@ -2,14 +2,11 @@ import java.sql.SQLException
 import java.util.concurrent.atomic.AtomicReference
 
 import dao.Suggestion
-import org.scalactic.Prettifier
 import org.scalatest._
-import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatestplus.play._
-import org.specs2.execute.{Result, AsResult}
 import play.api.Logger
 import play.api.libs.json.Json
-import play.api.libs.ws.{WSResponse, WS}
+import play.api.libs.ws.{WS, WSResponse}
 import play.api.mvc.Results
 import play.api.test.{Helpers, WithServer}
 import scripts.db.ImportDao
