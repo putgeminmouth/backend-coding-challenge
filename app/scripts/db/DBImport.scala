@@ -1,11 +1,10 @@
 package scripts.db
 
-import java.sql.{Connection, DriverManager, PreparedStatement}
+import java.sql.PreparedStatement
 
-import play.api.Logger
+import util.db.usingNewConnection
 import util.pattern.using
 import util.text.normalize
-import util.db.usingNewConnection
 
 import scala.io.Source
 

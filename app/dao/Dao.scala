@@ -3,7 +3,7 @@ package dao
 import java.sql.ResultSet
 import javax.inject.Inject
 
-import play.api.db.{Database}
+import play.api.db.Database
 import util.pattern.using
 import util.text.normalize
 
