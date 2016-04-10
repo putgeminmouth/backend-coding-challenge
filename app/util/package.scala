@@ -1,9 +1,12 @@
 package util
 
-import java.sql.{Connection, DriverManager}
+import java.sql.{PreparedStatement, Connection, DriverManager}
 import java.text.Normalizer
 
+import com.zaxxer.hikari.pool.ProxyPreparedStatement
 import play.api.Logger
+
+import scala.util.Try
 
 package object pattern {
     // https://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html
@@ -50,4 +53,9 @@ package object db {
             block
         }
     }
+
+    def toDebugString(stmt: PreparedStatement) =
+        Try(stmt.asInstanceOf[ProxyPreparedStatement]
+            .unwrap(classOf[PreparedStatement]).toString()
+        ).getOrElse("[Unable to convert SQL to string]")
 }
