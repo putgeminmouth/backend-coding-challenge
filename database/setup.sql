@@ -1,3 +1,7 @@
+create extension cube;
+create extension earthdistance;
+create extension pg_trgm;
+
 DROP TABLE IF EXISTS geoname;
 CREATE TABLE geoname(
     id         INTEGER,

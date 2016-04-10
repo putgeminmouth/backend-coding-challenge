@@ -83,10 +83,10 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
 
         db.withConnection { conn =>
             import GeonameTable._
-            // technically we could avoid returning distance from the query
-            // we could optimize by not taking SQRT since we are just comparing
+
             using(conn.prepareStatement(s"""
-                  | SELECT *, SQRT((latitude - ?)^2 + (longitude - ?)^2) as score
+                  | SELECT *, earth_distance(ll_to_earth(CAST(? as float8), CAST(? as float8)),
+                  |                          ll_to_earth(CAST(latitude as float8), CAST(longitude as float8))) as score
                   | FROM $tableName g
                   | WHERE normalized LIKE ?
                   | ORDER BY score

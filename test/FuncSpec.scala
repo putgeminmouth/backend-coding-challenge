@@ -229,8 +229,8 @@ class FuncSpec extends PlaySpec
             val name = "Montré"
 
             /* set 1 */ {
-                val latitude = BigDecimal(45)
-                val longitude = BigDecimal(-73)
+                val latitude = BigDecimal(45.5)
+                val longitude = BigDecimal(-73.6)
 
                 val response = request(url(name, latitude, longitude))
 

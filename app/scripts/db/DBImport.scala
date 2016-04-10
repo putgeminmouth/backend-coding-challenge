@@ -1,12 +1,14 @@
 package scripts.db
 
-import java.sql.PreparedStatement
+import java.sql.{SQLException, PreparedStatement}
 
+import play.api.Logger
 import util.db.usingNewConnection
 import util.pattern.using
 import util.text.normalize
 
 import scala.io.Source
+import scala.collection.JavaConverters._
 
 object ImportDao {
     type CityRow = Map[String, String]
@@ -58,13 +60,18 @@ object ImportDao {
 
                     batch.foreach(addBatch(stmt))
 
-                    val insertCount = stmt.executeBatch().sum
-                    if (insertCount != batch.size) {
-                        // TODO:
-                        //       more predantic handling of info in the returned arrray
-                        //       more information about what failed in the batch
-                        //       plus partial retry, etc...
-                        sys.error(s"Batch insert failed: inserted $insertCount.length / ${batch.size}")
+                    try {
+                        val insertCount = stmt.executeBatch().sum
+                        if (insertCount != batch.size) {
+                            // TODO:
+                            //       more predantic handling of info in the returned arrray
+                            //       more information about what failed in the batch
+                            //       plus partial retry, etc...
+                            sys.error(s"Batch insert failed: inserted $insertCount.length / ${batch.size}")
+                        }
+                    } catch {
+                        case e: SQLException =>
+                            e.iterator().asScala.foreach(Logger.error("While batching", _))
                     }
                 }
             }
