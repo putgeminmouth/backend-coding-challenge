@@ -1,7 +1,9 @@
 package util
 
-import java.sql.{DriverManager, Connection}
+import java.sql.{Connection, DriverManager}
 import java.text.Normalizer
+
+import play.api.Logger
 
 package object pattern {
     // https://docs.oracle.com/javase/tutorial/essential/exceptions/tryResourceClose.html
@@ -39,7 +41,10 @@ package object db {
     import pattern._
 
     def usingNewConnection(block: Connection => Unit) {
-        val conn = DriverManager.getConnection(sys.env("DATABASE_URL"))
+        val url = sys.env("JDBC_DATABASE_URL")
+        Logger.info(s"Database Url: $url")
+        val conn = DriverManager.getConnection(url)
+
         using(conn) {
 
             block
