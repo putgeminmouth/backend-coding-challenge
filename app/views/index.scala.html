@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<div>
 
 <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
 <script src="//code.jquery.com/jquery-1.10.2.js"></script>
@@ -7,8 +7,14 @@
 
 <script>
     function render(ul, item) {
-      var li = $('<li>')
-        .text(item.score + ': ' + item.name + ' (' + item.latitude + ', ' + item.longitude + ')')
+      var c = (256-Math.floor(parseFloat(item.score)*128)).toString(16);
+      var li = $('<li>').addClass('suggestion')
+        .append($('<span/>').addClass('name').text(item.name))
+        .append($('<span/>').addClass('coord').text(item.latitude + ' X ' + item.longitude))
+        .append($('<span/>').addClass('score').text('(' +
+                                 item.score.toString().substring(0, 4) +
+                                 ')')
+                            ).attr('style', 'background-color: #' + c + c + 'ff')
         .appendTo(ul);
       return li;
     }
@@ -16,7 +22,9 @@
     $(function() {
         $('[name=city1]').autocomplete({
           source: function(request, response) {
-            $.get('/suggestions?limit=10&q=' + request.term, function(data) {
+            var limit = $('input[name="limit"]').val();
+
+            $.get('/suggestions?q=' + request.term + '&limit=' + limit, function(data) {
                     response(data);
                 });
           }
@@ -24,10 +32,11 @@
 
         $('[name=city2]').autocomplete({
           source: function(request, response) {
+            var limit = $('input[name="limit"]').val();
             var lat = $('input[name="lat"]').val();
             var lon = $('input[name="lon"]').val();
 
-            var latlon = lat.length && lon.length && ('&' + 'latitude='+lat + '&' + 'longitude='+lon) || '';
+            var latlon = lat.length && lon.length && ('&' + 'latitude='+lat + '&' + 'longitude='+lon + '&limit=' + limit) || '';
 
             $.get('/suggestions?q=' + request.term + latlon, function(data) {
                     response(data);
@@ -36,30 +45,81 @@
         }).autocomplete('instance')._renderItem = render;
     });
 </script>
+<style>
+    .section {
+        border: solid #a0a0dd 2px;
+        width: 70%;
+        margin: 0 auto;
+        padding: 10px;
+    }
 
-<div class="ui-widget">
-    <label>
-        City: <input type="text" name="city1" autofocus>
-    </label>
-</div>
+    h1 {
+        border-bottom: solid #3030ff 1px;
+    }
 
-<hr>
+    .title {
+        margin-bottom: 15px;
+    }
+    .title span {
+        font-weight: bold;
+    }
 
-<div class="ui-widget">
-    <label>
-        City: <input type="text" name="city2" autofocus>
-    </label>
-    <div style="margin-top: 10px">
+    .suggestion .name {
+        padding: 0 5px 0 0;
+    }
+    .suggestion .coord {
+        padding: 0 5px 0 0;
+        font-family: monospace;
+    }
+    .suggestion .score {
+        padding: 0 5px 0 0;
+        font-size: 0.75em;
+        font-weight: bold;
+    }
+</style>
+
+<h1>Tardar Sauce!</h1>
+<h2>Test Page</h2>
+
+<div class="section">
+    <div class="title"><span>Misc</span></div>
+    <div class="ui-widget">
         <label>
-            Latitude: <input type="text" name="lat" value="45.52">
+            Limit: <input type="number" name="limit" value="50">
         </label>
-        <label>
-            Longitude: <input type="text" name="lon" value="-73.58">
-        </label>
-        </div>
     </div>
 </div>
 
-<div id="debug"></div>
+<br>
+
+<div class="section">
+    <div class="title"><span>Name only</span></div>
+    <div class="ui-widget">
+        <label>
+            City: <input type="text" name="city1" autofocus>
+        </label>
+    </div>
+</div>
+
+<br>
+
+<div class="section">
+    <div class="title"><span>Name and coordinates</span></div>
+
+    <div class="ui-widget">
+        <label>
+            City: <input type="text" name="city2">
+        </label>
+        <div style="margin-top: 10px">
+            <label>
+                Latitude: <input type="number" name="lat" value="45.52">
+            </label>
+            <label>
+                Longitude: <input type="number" name="lon" value="-73.58">
+            </label>
+            </div>
+        </div>
+    </div>
+</div>
 
 </html>
