@@ -145,6 +145,21 @@ class FuncSpec extends PlaySpec
             response.status must equal(BadRequest.header.status)
         }
     }
+    "limits" should {
+        "be respected" in new Test() {
+            /* 1 */ {
+                val response = request(s"${url("m")}&limit=1")
+                val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+                sugs.length must equal(1)
+            }
+
+            /* 2 */ {
+                val response = request(s"${url("m")}&limit=2")
+                val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+                sugs.length must equal(2)
+            }
+        }
+    }
     "name-only suggestion edge cases" should {
         "return empty results when there is no match" in new Test() {
             val nonExistantName = "Cair Paravel"

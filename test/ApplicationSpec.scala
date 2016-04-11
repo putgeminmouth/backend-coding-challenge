@@ -1,6 +1,7 @@
 import controllers.Application
 import dao.{Suggestion, SuggestionDao}
 import org.mockito.Matchers._
+import org.mockito.Matchers.{eq => eqmatch}
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfter
 import org.scalatest.mock.MockitoSugar
@@ -42,12 +43,12 @@ class ApplicationSpec extends PlaySpec
         "call the right Dao when no coordiates are given" in {
             val name = "Montreal"
 
-            when(dao.selectByName(anyString())) thenReturn Seq.empty[Suggestion]
+            when(dao.selectByName(anyString(), any[Option[Int]])) thenReturn Seq.empty[Suggestion]
 
-            val result = app.suggestions(name, None, None)(FakeRequest())
+            val result = app.suggestions(name, None, None, None)(FakeRequest())
             Await.result(result, 0 seconds)
 
-            verify(dao, times(1)).selectByName(name)
+            verify(dao, times(1)).selectByName(eqmatch(name), any[Option[Int]])
         }
         "call the right Dao when both coordinates are given" in {
             val name = "Toronto"
@@ -56,15 +57,15 @@ class ApplicationSpec extends PlaySpec
             val longitudeStr = "-43.21"
             val longitude   = BigDecimal(longitudeStr)
 
-            when(dao.selectByNameWithCoordinates(anyString(), any[BigDecimal], any[BigDecimal])) thenReturn Seq.empty[Suggestion]
+            when(dao.selectByNameWithCoordinates(anyString(), any[BigDecimal], any[BigDecimal], any[Option[Int]])) thenReturn Seq.empty[Suggestion]
 
-            val result = app.suggestions(name, Some(latitudeStr), Some(longitudeStr))(FakeRequest())
+            val result = app.suggestions(name, Some(latitudeStr), Some(longitudeStr), None)(FakeRequest())
             Await.result(result, 0 seconds)
 
-            verify(dao, times(1)).selectByNameWithCoordinates(name, latitude, longitude)
+            verify(dao, times(1)).selectByNameWithCoordinates(eqmatch(name), eqmatch(latitude), eqmatch(longitude), any[Option[Int]])
         }
         "return an error if a coordinate is NaN" in {
-            when(dao.selectByName(anyString())) thenReturn Seq.empty[Suggestion]
+            when(dao.selectByName(anyString(), any[Option[Int]])) thenReturn Seq.empty[Suggestion]
 
             val validNumber = "6"
             Seq(
@@ -73,22 +74,22 @@ class ApplicationSpec extends PlaySpec
                 "not a number"
             ).foreach { invalidNumber =>
                 status(
-                    app.suggestions("hello", Some(invalidNumber), Some(validNumber))(FakeRequest())
+                    app.suggestions("hello", Some(invalidNumber), Some(validNumber), None)(FakeRequest())
                 ) must equal(BAD_REQUEST)
 
                 status(
-                    app.suggestions("hello", Some(validNumber), Some(invalidNumber))(FakeRequest())
+                    app.suggestions("hello", Some(validNumber), Some(invalidNumber), None)(FakeRequest())
                 ) must equal(BAD_REQUEST)
 
                 status(
-                    app.suggestions("hello", Some(invalidNumber), Some(invalidNumber))(FakeRequest())
+                    app.suggestions("hello", Some(invalidNumber), Some(invalidNumber), None)(FakeRequest())
                 ) must equal(BAD_REQUEST)
             }
         }
         "return an error if only one coordinate is given" in {
-            when(dao.selectByName(anyString())) thenReturn Seq.empty[Suggestion]
+            when(dao.selectByName(anyString(), any[Option[Int]])) thenReturn Seq.empty[Suggestion]
 
-            val result = app.suggestions("hello", Some("1.2"), None)(FakeRequest())
+            val result = app.suggestions("hello", Some("1.2"), None, None)(FakeRequest())
             status(result) must equal(BAD_REQUEST)
         }
         "return json results in the right format (i.e. json matches the spec)" in {
@@ -97,9 +98,9 @@ class ApplicationSpec extends PlaySpec
                 Suggestion("Toronto", BigDecimal(3), BigDecimal(4), 0)
             )
 
-            when(dao.selectByName(anyString())) thenReturn suggestions
+            when(dao.selectByName(anyString(), any[Option[Int]])) thenReturn suggestions
 
-            val result = app.suggestions("hi", None, None)(FakeRequest())
+            val result = app.suggestions("hi", None, None, None)(FakeRequest())
             status(result) must equal(OK)
             val values = contentAsJson(result).as[JsArray].value
 
@@ -117,7 +118,7 @@ class ApplicationSpec extends PlaySpec
                     "score" -> 0
                 )
             ))
-            verify(dao, times(1)).selectByName(anyString())
+            verify(dao, times(1)).selectByName(anyString(), any[Option[Int]])
         }
     }
 }

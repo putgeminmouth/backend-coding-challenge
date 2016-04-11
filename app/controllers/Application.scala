@@ -16,16 +16,20 @@ class Application @Inject() (dao: SuggestionDao) extends Controller {
         Ok(views.html.index())
     }
 
-    def suggestions(nameParam: String, latitudeParam: Option[String], longitudeParam: Option[String]) = Action { request =>
+    def suggestions(nameParam: String,
+                    latitudeParam: Option[String],
+                    longitudeParam: Option[String],
+                    limit: Option[Int]) = Action { request =>
+
         def parseBigDecimal(optBd: Option[String]): Option[Try[BigDecimal]] =
             optBd.map(_.trim).map(o => Try(BigDecimal(o)))
 
         val result = (nameParam, parseBigDecimal(latitudeParam), parseBigDecimal(longitudeParam)) match {
             case (name, Some(Success(latitude)), Some(Success(longitude))) if name.trim.nonEmpty =>
-                Right(dao.selectByNameWithCoordinates(name, latitude, longitude))
+                Right(dao.selectByNameWithCoordinates(name, latitude, longitude, limit))
 
             case (name, None, None) if name.trim.nonEmpty =>
-                Right(dao.selectByName(nameParam))
+                Right(dao.selectByName(nameParam, limit))
 
             case _ =>
                 Left(BadRequest)

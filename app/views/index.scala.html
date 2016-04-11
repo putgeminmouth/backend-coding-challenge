@@ -16,7 +16,7 @@
     $(function() {
         $('[name=city1]').autocomplete({
           source: function(request, response) {
-            $.get('/suggestions?q=' + request.term, function(data) {
+            $.get('/suggestions?limit=10&q=' + request.term, function(data) {
                     response(data);
                 });
           }

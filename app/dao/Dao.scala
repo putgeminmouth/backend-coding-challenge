@@ -45,18 +45,22 @@ object Dao {
 }
 
 trait SuggestionDao {
-    def selectByName(name: String): Seq[Suggestion]
-    def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal): Seq[Suggestion]
+    def selectByName(name: String, limit: Option[Int]): Seq[Suggestion]
+    def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal, limit: Option[Int]): Seq[Suggestion]
 }
 
 class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
     import Dao._
 
+    // arbitrary defensive limit
+    val hardlimit = 100
+
     private def applyScore(max: Double)(suggestion: Suggestion) =
         suggestion.copy(score = scoreNormalizedAgainstMaxValue(max)(suggestion.score))
 
-    def selectByName(name: String): Seq[Suggestion] = {
+    def selectByName(name: String, requestedLimit: Option[Int]): Seq[Suggestion] = {
         val like = s"${escapeLike(normalize(name))}%"
+        val limit = Math.min(hardlimit, requestedLimit.getOrElse(hardlimit))
 
         db.withConnection { conn =>
             import GeonameTable._
@@ -65,8 +69,10 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
                   | FROM $tableName g
                   | WHERE normalized LIKE ?
                   | ORDER BY score
+                  | LIMIT ?
                   |""".stripMargin)) { stmt =>
                 stmt.setString(1, like)
+                stmt.setInt(2, limit)
 
                 using(stmt.executeQuery()) { rs =>
                     val suggestions = mapResultSet(rs)(mapSuggestion)
@@ -78,8 +84,9 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
         }
     }
 
-    def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal): Seq[Suggestion] = {
+    def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal, requestedLimit: Option[Int]): Seq[Suggestion] = {
         val like = s"${escapeLike(normalize(name))}%"
+        val limit = Math.min(hardlimit, requestedLimit.getOrElse(hardlimit))
 
         db.withConnection { conn =>
             import GeonameTable._
@@ -90,10 +97,12 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
                   | FROM $tableName g
                   | WHERE normalized LIKE ?
                   | ORDER BY score
+                  | LIMIT ?
                   |""".stripMargin)) { stmt =>
                 stmt.setBigDecimal(1, latitude.bigDecimal)
                 stmt.setBigDecimal(2, longitude.bigDecimal)
                 stmt.setString(3, like)
+                stmt.setInt(4, limit)
 
                 using(stmt.executeQuery()) { rs =>
                     val suggestions = mapResultSet(rs)(mapSuggestion)
