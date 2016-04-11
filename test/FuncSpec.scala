@@ -6,10 +6,10 @@ import dao.{SuggestionDao, Suggestion}
 import org.scalatest._
 import org.scalatestplus.play._
 import org.specs2.execute.{Result, AsResult}
-import play.api.Logger
+import play.api.{Application, Logger}
 import play.api.inject._
 import play.api.inject.guice.GuiceApplicationBuilder
-import play.api.libs.json.Json
+import play.api.libs.json.{JsValue, JsArray, Json}
 import play.api.libs.ws.{WSClient, WS, WSResponse}
 import play.api.mvc.Results
 import play.api.test.{Helpers, WithServer}
@@ -29,8 +29,8 @@ class FuncSpec extends PlaySpec
 {
     implicit val suggestionFromJson = Json.reads[Suggestion]
 
-    class Test extends WithServer
-    {
+    class Test(val appBuilder: GuiceApplicationBuilder = GuiceApplicationBuilder())
+        extends WithServer(app=appBuilder.build()) {
         var wsClient: WSClient = _
 
         override def around[T: AsResult](t: => T): Result = {
@@ -83,7 +83,7 @@ class FuncSpec extends PlaySpec
         def url(name: String, latitude: Option[String], longitude: Option[String]) = {
             val paramStr = (latitude.map(l => s"&latitude=$l") ++
                 longitude.map(l => s"&longitude=$l")).flatten.mkString
-            s"${baseUrl}?q=${name}&${paramStr}"
+            s"${baseUrl}?q=${name}${paramStr}"
         }
 
         def url(name: String, latitude: String, longitude: String): String =
@@ -98,9 +98,14 @@ class FuncSpec extends PlaySpec
         def request(url: String) = {
             Logger.debug(s"Request to $url")
             val response = Await.result(wsClient.url(url).get(), 10 seconds)
-            //lastWSResponse = Some(response)
+            Logger.debug(s"Response body:\n${response.body}")
             response
         }
+
+        def responseSuggestions(response: WSResponse) =
+            (Json.parse(response.body) \ "suggestions")
+                .as[JsArray]
+                .as[Seq[Suggestion]]
     }
 
     def assertOrder(actual: Seq[Suggestion], expectedNames: Seq[String]) = {
@@ -131,13 +136,13 @@ class FuncSpec extends PlaySpec
         "be respected" in new Test() {
             /* 1 */ {
                 val response = request(s"${url("m")}&limit=1")
-                val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+                val sugs = responseSuggestions(response)
                 sugs.length must equal(1)
             }
 
             /* 2 */ {
                 val response = request(s"${url("m")}&limit=2")
-                val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+                val sugs = responseSuggestions(response)
                 sugs.length must equal(2)
             }
         }
@@ -150,7 +155,7 @@ class FuncSpec extends PlaySpec
 
             response.status must equal(Ok.header.status)
 
-            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+            val sugs = responseSuggestions(response)
 
             assertOrder(sugs, Seq(
                 "Montrose, Colorado, United States",
@@ -167,7 +172,7 @@ class FuncSpec extends PlaySpec
 
             response.status must equal(Ok.header.status)
 
-            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+            val sugs = responseSuggestions(response)
 
             assertOrder(sugs, Seq(
                 "Montréal, Quebec, Canada",
@@ -184,7 +189,7 @@ class FuncSpec extends PlaySpec
 
             response.status must equal(Ok.header.status)
 
-            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+            val sugs = responseSuggestions(response)
 
             assertOrder(sugs, Seq(
                 "Montréal-Ouest, Quebec, Canada",
@@ -209,7 +214,7 @@ class FuncSpec extends PlaySpec
 
                 response.status must equal(Ok.header.status)
 
-                val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+                val sugs = responseSuggestions(response)
 
                 assertOrder(sugs, Seq(
                     "Montréal, Quebec, Canada",
@@ -228,7 +233,7 @@ class FuncSpec extends PlaySpec
 
                 response.status must equal(Ok.header.status)
 
-                val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+                val sugs = responseSuggestions(response)
 
                 assertOrder(sugs, Seq(
                     "Montréal-Ouest, Quebec, Canada",
@@ -249,7 +254,7 @@ class FuncSpec extends PlaySpec
 
             response.status must equal(Ok.header.status)
 
-            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+            val sugs = responseSuggestions(response)
 
             assertOrder(sugs, Seq(
                 "Monument, Denver, United States",

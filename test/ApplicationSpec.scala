@@ -8,7 +8,7 @@ import org.scalatest.mock.MockitoSugar
 import org.scalatestplus.play._
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
-import play.api.libs.json.{JsArray, Json}
+import play.api.libs.json.{JsBoolean, JsArray, Json}
 import play.api.mvc.Results
 import play.api.test.Helpers._
 import play.api.test._
@@ -73,17 +73,23 @@ class ApplicationSpec extends PlaySpec
                 " ",
                 "not a number"
             ).foreach { invalidNumber =>
-                status(
-                    app.suggestions("hello", Some(invalidNumber), Some(validNumber), None)(FakeRequest())
-                ) must equal(BAD_REQUEST)
+                {
+                    val result = app.suggestions("hello", Some(invalidNumber), Some(validNumber), None)(FakeRequest())
+                    status(result) must equal(BAD_REQUEST)
+                    (contentAsJson(result) \ "status").as[JsBoolean].value must equal(false)
+                }
 
-                status(
-                    app.suggestions("hello", Some(validNumber), Some(invalidNumber), None)(FakeRequest())
-                ) must equal(BAD_REQUEST)
+                {
+                    val result = app.suggestions("hello", Some(validNumber), Some(invalidNumber), None)(FakeRequest())
+                    status(result) must equal(BAD_REQUEST)
+                    (contentAsJson(result) \ "status").as[JsBoolean].value must equal(false)
+                }
 
-                status(
-                    app.suggestions("hello", Some(invalidNumber), Some(invalidNumber), None)(FakeRequest())
-                ) must equal(BAD_REQUEST)
+                {
+                    val result = app.suggestions("hello", Some(invalidNumber), Some(invalidNumber), None)(FakeRequest())
+                    status(result) must equal(BAD_REQUEST)
+                    (contentAsJson(result) \ "status").as[JsBoolean].value must equal(false)
+                }
             }
         }
         "return an error if only one coordinate is given" in {
@@ -91,6 +97,7 @@ class ApplicationSpec extends PlaySpec
 
             val result = app.suggestions("hello", Some("1.2"), None, None)(FakeRequest())
             status(result) must equal(BAD_REQUEST)
+            (contentAsJson(result) \ "status").as[JsBoolean].value must equal(false)
         }
         "return json results in the right format (i.e. json matches the spec)" in {
             val suggestions = Seq(
@@ -102,7 +109,8 @@ class ApplicationSpec extends PlaySpec
 
             val result = app.suggestions("hi", None, None, None)(FakeRequest())
             status(result) must equal(OK)
-            val values = contentAsJson(result).as[JsArray].value
+            (contentAsJson(result) \ "status").as[JsBoolean].value must equal(true)
+            val values = (contentAsJson(result) \ "suggestions").as[JsArray].value
 
             values must equal(Seq(
                 Json.obj(

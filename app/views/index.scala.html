@@ -25,7 +25,7 @@
             var limit = $('input[name="limit"]').val();
 
             $.get('/suggestions?q=' + request.term + '&limit=' + limit, function(data) {
-                    response(data);
+                    response(data.suggestions);
                 });
           }
         }).autocomplete('instance')._renderItem = render;
@@ -39,7 +39,7 @@
             var latlon = lat.length && lon.length && ('&' + 'latitude='+lat + '&' + 'longitude='+lon + '&limit=' + limit) || '';
 
             $.get('/suggestions?q=' + request.term + latlon, function(data) {
-                    response(data);
+                    response(data.suggestions);
                 });
           }
         }).autocomplete('instance')._renderItem = render;
