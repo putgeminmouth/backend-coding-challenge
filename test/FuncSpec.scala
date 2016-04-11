@@ -22,27 +22,9 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 
-trait WithTestStatus extends SuiteMixin { self: Suite =>
-    // BeforeAndAfter uses atomic/volatile, so we do too, even though
-    // this probably doesn't make sense when parallellized
-    val lastTestStatus = new AtomicReference[Option[Status]](None)
-
-    abstract protected override def runTest(testName: String, args: Args): Status = {
-        val status = super.runTest(testName, args)
-        lastTestStatus.set(Some(status))
-        status
-    }
-    abstract override def run(testName: Option[String], args: Args): Status = {
-        val status = super.run(testName, args)
-        lastTestStatus.set(Some(status))
-        status
-    }
-}
-
 // These are NOT parallelizable
 class FuncSpec extends PlaySpec
     with Results
-    with WithTestStatus
     with BeforeAndAfter
 {
     implicit val suggestionFromJson = Json.reads[Suggestion]
@@ -160,20 +142,6 @@ class FuncSpec extends PlaySpec
             }
         }
     }
-    "name-only suggestion edge cases" should {
-        "return empty results when there is no match" in new Test() {
-            val nonExistantName = "Cair Paravel"
-
-            val response = request(url(nonExistantName))
-
-            response.status must equal(Ok.header.status)
-
-            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
-
-            sugs must equal(Seq.empty[Suggestion])
-        }
-    }
-
     "name-only suggestion ranking" should {
         "return improve match with more characters set 1" in new Test() {
             val name = "m"
@@ -185,56 +153,46 @@ class FuncSpec extends PlaySpec
             val sugs = Json.parse(response.body).as[Seq[Suggestion]]
 
             assertOrder(sugs, Seq(
-                "Montréal, Quebec, Canada",
-                "Montréal-Ouest, Quebec, Canada",
-                "Montrose, Virginia, United States",
                 "Montrose, Colorado, United States",
-                "Monument, Denver, United States"
-            ))
-        }
-        "return improve match with more characters set 2" in new Test() {
-            val name = "mont"
-
-            val response = request(url(name))
-
-            response.status must equal(Ok.header.status)
-
-            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
-
-            assertOrder(sugs, Seq(
-                "Montréal, Quebec, Canada",
-                "Montréal-Ouest, Quebec, Canada",
                 "Montrose, Virginia, United States",
-                "Montrose, Colorado, United States"
-            ))
-        }
-        "return improve match with more characters set 3" in new Test() {
-            val name = "Montreal"
-
-            val response = request(url(name))
-
-            response.status must equal(Ok.header.status)
-
-            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
-
-            assertOrder(sugs, Seq(
                 "Montréal, Quebec, Canada",
+                "Monument, Denver, United States",
                 "Montréal-Ouest, Quebec, Canada"
             ))
         }
-    }
+        "return improve match with more characters set 2" in new Test() {
+            val name = "montrea"
 
-    "name and coordinate suggestion edge cases" should {
-        "return empty results when there is no match" in new Test() {
-            val nonExistantName = "Cair Paravel"
-
-            val response = request(url(nonExistantName, BigDecimal(0), BigDecimal(0)))
+            val response = request(url(name))
 
             response.status must equal(Ok.header.status)
 
             val sugs = Json.parse(response.body).as[Seq[Suggestion]]
 
-            sugs must equal(Seq.empty[Suggestion])
+            assertOrder(sugs, Seq(
+                "Montréal, Quebec, Canada",
+                "Montréal-Ouest, Quebec, Canada",
+                "Montrose, Colorado, United States",
+                "Montrose, Virginia, United States",
+                "Monument, Denver, United States"
+            ))
+        }
+        "return improve match with more characters set 3" in new Test() {
+            val name = "Montreal Ouest"
+
+            val response = request(url(name))
+
+            response.status must equal(Ok.header.status)
+
+            val sugs = Json.parse(response.body).as[Seq[Suggestion]]
+
+            assertOrder(sugs, Seq(
+                "Montréal-Ouest, Quebec, Canada",
+                "Montréal, Quebec, Canada",
+                "Montrose, Colorado, United States",
+                "Montrose, Virginia, United States",
+                "Monument, Denver, United States"
+            ))
         }
     }
 
@@ -255,7 +213,10 @@ class FuncSpec extends PlaySpec
 
                 assertOrder(sugs, Seq(
                     "Montréal, Quebec, Canada",
-                    "Montréal-Ouest, Quebec, Canada"
+                    "Montréal-Ouest, Quebec, Canada",
+                    "Montrose, Colorado, United States",
+                    "Montrose, Virginia, United States",
+                    "Monument, Denver, United States"
                 ))
             }
 
@@ -271,7 +232,10 @@ class FuncSpec extends PlaySpec
 
                 assertOrder(sugs, Seq(
                     "Montréal-Ouest, Quebec, Canada",
-                    "Montréal, Quebec, Canada"
+                    "Montréal, Quebec, Canada",
+                    "Montrose, Colorado, United States",
+                    "Montrose, Virginia, United States",
+                    "Monument, Denver, United States"
                 ))
             }
         }
@@ -291,8 +255,8 @@ class FuncSpec extends PlaySpec
                 "Monument, Denver, United States",
                 "Montrose, Colorado, United States",
                 "Montrose, Virginia, United States",
-                "Montréal-Ouest, Quebec, Canada",
-                "Montréal, Quebec, Canada"
+                "Montréal, Quebec, Canada",
+                "Montréal-Ouest, Quebec, Canada"
             ))
         }
     }

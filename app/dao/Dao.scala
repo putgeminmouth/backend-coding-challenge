@@ -1,8 +1,9 @@
 package dao
 
 import java.sql.ResultSet
-import javax.inject.Inject
+import javax.inject.{Named, Inject}
 
+import play.api.Logger
 import play.api.db.Database
 import util.pattern.using
 import util.text.normalize
@@ -49,11 +50,12 @@ trait SuggestionDao {
     def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal, limit: Option[Int]): Seq[Suggestion]
 }
 
-class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
-    import Dao._
+abstract class PostgresSuggestionDao(val hardlimit: Int, db: Database) extends SuggestionDao
 
-    // arbitrary defensive limit
-    val hardlimit = 100
+class PrefixPostgresSuggestionDao @Inject()
+    (@Named("dao.hardlimit") hardlimit: Int, db: Database)
+    extends PostgresSuggestionDao(hardlimit, db) {
+    import Dao._
 
     private def applyScore(max: Double)(suggestion: Suggestion) =
         suggestion.copy(score = scoreNormalizedAgainstMaxValue(max)(suggestion.score))
@@ -65,7 +67,7 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
         db.withConnection { conn =>
             import GeonameTable._
             using(conn.prepareStatement(s"""
-                  | SELECT *, ROW_NUMBER() OVER (order by normalized) as score
+                  | SELECT *, ROW_NUMBER() OVER (order by name asc, division asc, country asc) as score
                   | FROM $tableName g
                   | WHERE normalized LIKE ?
                   | ORDER BY score
@@ -73,6 +75,8 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
                   |""".stripMargin)) { stmt =>
                 stmt.setString(1, like)
                 stmt.setInt(2, limit)
+
+                Logger.debug(util.db.toDebugString(stmt))
 
                 using(stmt.executeQuery()) { rs =>
                     val suggestions = mapResultSet(rs)(mapSuggestion)
@@ -96,13 +100,15 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
                   |                          ll_to_earth(CAST(latitude as float8), CAST(longitude as float8))) as score
                   | FROM $tableName g
                   | WHERE normalized LIKE ?
-                  | ORDER BY score
+                  | ORDER BY score, name asc, division asc, country asc
                   | LIMIT ?
                   |""".stripMargin)) { stmt =>
                 stmt.setBigDecimal(1, latitude.bigDecimal)
                 stmt.setBigDecimal(2, longitude.bigDecimal)
                 stmt.setString(3, like)
                 stmt.setInt(4, limit)
+
+                Logger.debug(util.db.toDebugString(stmt))
 
                 using(stmt.executeQuery()) { rs =>
                     val suggestions = mapResultSet(rs)(mapSuggestion)
@@ -111,6 +117,77 @@ class PostgresSuggestionDao @Inject() (db: Database) extends SuggestionDao {
                     }
                     suggestions
                         .map(applyScore(maxDistance))
+                }
+            }
+        }
+    }
+}
+
+class SimilarityPostgresSuggestionDao @Inject()
+    (@Named("dao.hardlimit") hardlimit: Int,
+     @Named("similarity.nameWeight") nameWeight: Double,
+     @Named("similarity.distanceWeight") distanceWeight: Double,
+     @Named("similarity.distanceScale") distanceScale: Double,
+     db: Database)
+    extends PostgresSuggestionDao(hardlimit, db) {
+    import Dao._
+
+    require(distanceScale != 0)
+    require(nameWeight + distanceWeight == 1)
+
+    def selectByName(name: String, requestedLimit: Option[Int]): Seq[Suggestion] = {
+        val normalized = normalize(name)
+        val limit = Math.min(hardlimit, requestedLimit.getOrElse(hardlimit))
+
+        db.withConnection { conn =>
+            import GeonameTable._
+            using(conn.prepareStatement(s"""
+                  | SELECT *, similarity(normalized, ?) as score
+                  | FROM $tableName g
+                  | ORDER BY score desc, name asc, division asc, country asc
+                  | LIMIT ?
+                  |""".stripMargin)) { stmt =>
+                stmt.setString(1, normalized)
+                stmt.setInt(2, limit)
+
+                Logger.debug(util.db.toDebugString(stmt))
+
+                using(stmt.executeQuery()) { rs =>
+                    mapResultSet(rs)(mapSuggestion)
+                }
+            }
+        }
+    }
+
+    def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal, requestedLimit: Option[Int]): Seq[Suggestion] = {
+        val normalized = normalize(name)
+        val limit = Math.min(hardlimit, requestedLimit.getOrElse(hardlimit))
+
+        db.withConnection { conn =>
+            import GeonameTable._
+
+            using(conn.prepareStatement(s"""
+                  | SELECT *,
+                  |        similarity(normalized, ?)*$nameWeight + (
+                  |            1 - LEAST(earth_distance(ll_to_earth(CAST(? as float8), CAST(? as float8)),
+                  |                                     ll_to_earth(CAST(latitude as float8), CAST(longitude as float8))
+                  |                     ) / $distanceScale,
+                  |                1)
+                  |        )*$distanceWeight as score
+                  |
+                  | FROM $tableName g
+                  | ORDER BY score desc, name asc, division asc, country asc
+                  | LIMIT ?
+                  |""".stripMargin)) { stmt =>
+                stmt.setString(1, normalized)
+                stmt.setBigDecimal(2, latitude.bigDecimal)
+                stmt.setBigDecimal(3, longitude.bigDecimal)
+                stmt.setInt(4, limit)
+
+                Logger.debug(util.db.toDebugString(stmt))
+
+                using(stmt.executeQuery()) { rs =>
+                    mapResultSet(rs)(mapSuggestion)
                 }
             }
         }
