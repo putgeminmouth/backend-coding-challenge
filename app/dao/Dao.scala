@@ -1,7 +1,7 @@
 package dao
 
 import java.sql.ResultSet
-import javax.inject.{Named, Inject}
+import javax.inject.{Inject, Named}
 
 import play.api.Logger
 import play.api.db.Database
@@ -50,11 +50,9 @@ trait SuggestionDao {
     def selectByNameWithCoordinates(name: String, latitude: BigDecimal, longitude: BigDecimal, limit: Option[Int]): Seq[Suggestion]
 }
 
-abstract class PostgresSuggestionDao(val hardlimit: Int, db: Database) extends SuggestionDao
-
 class PrefixPostgresSuggestionDao @Inject()
     (@Named("dao.hardlimit") hardlimit: Int, db: Database)
-    extends PostgresSuggestionDao(hardlimit, db) {
+    extends SuggestionDao {
     import Dao._
 
     private def applyScore(max: Double)(suggestion: Suggestion) =
@@ -129,7 +127,7 @@ class SimilarityPostgresSuggestionDao @Inject()
      @Named("similarity.distanceWeight") distanceWeight: Double,
      @Named("similarity.distanceScale") distanceScale: Double,
      db: Database)
-    extends PostgresSuggestionDao(hardlimit, db) {
+    extends SuggestionDao {
     import Dao._
 
     require(distanceScale != 0)

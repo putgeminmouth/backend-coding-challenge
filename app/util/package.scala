@@ -1,6 +1,6 @@
 package util
 
-import java.sql.{PreparedStatement, Connection, DriverManager}
+import java.sql.{Connection, DriverManager, PreparedStatement}
 import java.text.Normalizer
 
 import com.zaxxer.hikari.pool.ProxyPreparedStatement

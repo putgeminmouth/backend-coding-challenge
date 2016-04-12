@@ -1,7 +1,6 @@
-import com.google.inject.AbstractModule
-import dao.{PrefixPostgresSuggestionDao, SuggestionDao}
-import play.api.{Configuration, Environment}
+import dao.SuggestionDao
 import play.api.inject.{Binding, Module}
+import play.api.{Configuration, Environment}
 
 class MyModule extends Module {
     override def bindings(environment: Environment, configuration: Configuration): Seq[Binding[_]] = {

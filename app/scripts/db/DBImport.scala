@@ -1,14 +1,14 @@
 package scripts.db
 
-import java.sql.{SQLException, PreparedStatement}
+import java.sql.{PreparedStatement, SQLException}
 
 import play.api.Logger
 import util.db.usingNewConnection
 import util.pattern.using
 import util.text.normalize
 
-import scala.io.Source
 import scala.collection.JavaConverters._
+import scala.io.Source
 
 object ImportDao {
     type CityRow = Map[String, String]
